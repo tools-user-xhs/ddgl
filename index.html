@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>订单管理 · 看板分析/层次导航/PDF</title>
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <!-- html2pdf -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Chart.js 用于看板图表 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background: #f7f9fc;
+      min-height: 100vh;
+      color: #0f172a;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---------- 左侧边栏 ---------- */
+    .sidebar {
+      width: 280px;
+      background: #ffffff;
+      border-right: 1px solid #e9eef3;
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+      box-shadow: 1px 0 3px rgba(0,0,0,0.02);
+    }
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+      border-bottom: 1px solid #f1f5f9;
+      letter-spacing: -0.02em;
+      flex-shrink: 0;
+    }
+    .sidebar-brand i {
+      color: #3b82f6;
+      font-size: 1.3rem;
+    }
+
+    .sidebar-section-title {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      font-weight: 700;
+      padding: 1.1rem 1.5rem 0.4rem 1.5rem;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 0 0.75rem 1rem 0.75rem;
+      overflow-y: auto;
+    }
+
+    .menu-item {
+      margin-bottom: 0.15rem;
+    }
+    .menu-trigger {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: 0.65rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #475569;
+      font-weight: 500;
+      font-size: 0.88rem;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .menu-trigger:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .menu-trigger.active {
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 600;
+      border-color: #dbeafe;
+    }
+    .menu-trigger .menu-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 0.55rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      background: #f1f5f9;
+      color: #64748b;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .menu-trigger.active .menu-icon {
+      background: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+    }
+    .menu-trigger:hover .menu-icon {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .menu-trigger.active:hover .menu-icon {
+      background: #2563eb;
+      color: #ffffff;
+    }
+    .menu-trigger .menu-label {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .menu-arrow {
+      font-size: 0.65rem;
+      color: #94a3b8;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .menu-item.open > .menu-trigger .menu-arrow {
+      transform: rotate(90deg);
+    }
+
+    .submenu {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease;
+      margin-left: 0.85rem;
+      border-left: 1.5px dashed #e2e8f0;
+      padding-left: 0.5rem;
+    }
+    .menu-item.open > .submenu {
+      max-height: 500px;
+    }
+
+    .submenu-item {
+      margin-top: 0.1rem;
+    }
+    .submenu-trigger {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #64748b;
+      font-weight: 500;
+      font-size: 0.82rem;
+      user-select: none;
+    }
+    .submenu-trigger:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .submenu-trigger.active {
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+    .submenu-trigger .sub-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .submenu-trigger.active .sub-dot {
+      background: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+    .submenu-trigger .sub-label {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .submenu-arrow {
+      font-size: 0.55rem;
+      color: #cbd5e1;
+      transition: transform 0.2s;
+    }
+    .submenu-item.open > .submenu-trigger .submenu-arrow {
+      transform: rotate(90deg);
+    }
+
+    .subsubmenu {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease;
+      margin-left: 1.4rem;
+      border-left: 1.5px dashed #eef2f6;
+      padding-left: 0.5rem;
+    }
+    .submenu-item.open > .subsubmenu {
+      max-height: 300px;
+    }
+    .subsubmenu-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.7rem;
+      border-radius: 0.45rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #94a3b8;
+      font-weight: 500;
+      font-size: 0.78rem;
+      user-select: none;
+      margin-top: 0.05rem;
+    }
+    .subsubmenu-item:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .subsubmenu-item.active {
+      color: #1d4ed8;
+      font-weight: 600;
+      background: #f0f9ff;
+    }
+    .subsubmenu-item .subsub-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      flex-shrink: 0;
+    }
+    .subsubmenu-item.active .subsub-dot {
+      background: #3b82f6;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 1rem 0.75rem 1.25rem 0.75rem;
+      border-top: 1px solid #f1f5f9;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .sidebar-action {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1rem;
+      border-radius: 0.6rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.15s;
+      border: none;
+      background: transparent;
+      color: #475569;
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+    }
+    .sidebar-action:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .sidebar-action.primary {
+      background: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(59,130,246,0.25);
+      justify-content: center;
+    }
+    .sidebar-action.primary:hover {
+      background: #2563eb;
+    }
+    .sidebar-action i {
+      font-size: 0.9rem;
+      width: 18px;
+      text-align: center;
+    }
+
+    /* ---------- 右侧主内容区 ---------- */
+    .main {
+      flex: 1;
+      padding: 1.5rem 2rem 3rem 2rem;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    .main-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+    }
+    .breadcrumb i {
+      font-size: 0.6rem;
+    }
+    .main-topbar h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .main-topbar h1 i {
+      color: #3b82f6;
+      font-size: 1.3rem;
+    }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn-preview {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #1e293b;
+      padding: 0.5rem 1.1rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .btn-preview:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    .btn-export {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.2rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 2px 6px rgba(59,130,246,0.25);
+    }
+    .btn-export:hover {
+      background: #2563eb;
+    }
+
+    /* ---------- 模块 ---------- */
+    .module {
+      background: #ffffff;
+      border-radius: 1.25rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.02);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      border: 1px solid #eef2f6;
+      transition: box-shadow 0.2s;
+      scroll-margin-top: 80px;
+    }
+    .module:hover {
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
+    }
+
+    .module-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.75rem;
+      background: linear-gradient(90deg, #f8fafc 0%, #ffffff 100%);
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 2px solid #f1f5f9;
+      transition: background 0.15s;
+    }
+    .module-header:hover {
+      background: linear-gradient(90deg, #f1f5f9 0%, #f8fafc 100%);
+    }
+    .module-title {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+    }
+    .module-title-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+    .module-title-icon.icon-a {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      box-shadow: 0 4px 10px rgba(59,130,246,0.3);
+    }
+    .module-title-icon.icon-b {
+      background: linear-gradient(135deg, #10b981, #059669);
+      box-shadow: 0 4px 10px rgba(16,185,129,0.3);
+    }
+    .module-title-icon.icon-c {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      box-shadow: 0 4px 10px rgba(245,158,11,0.3);
+    }
+    .module-title-icon.icon-d {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      box-shadow: 0 4px 10px rgba(139,92,246,0.3);
+    }
+    .module-title-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .module-title-text h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .module-title-text .module-subtitle {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      font-weight: 400;
+    }
+    .module-header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .module-count {
+      font-size: 0.75rem;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 0.3rem 0.75rem;
+      border-radius: 2rem;
+      font-weight: 500;
+    }
+    .toggle-icon {
+      color: #64748b;
+      transition: transform 0.25s;
+      font-size: 0.9rem;
+      background: #ffffff;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .module.collapsed .toggle-icon {
+      transform: rotate(-90deg);
+    }
+
+    .module-body {
+      padding: 1.5rem 1.75rem 1.75rem 1.75rem;
+      transition: all 0.2s;
+      background: #ffffff;
+    }
+    .module.collapsed .module-body {
+      display: none;
+    }
+
+    /* ---------- 订单卡片 ---------- */
+    .row-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .order-card {
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-radius: 1rem;
+      padding: 1rem 1.25rem 1rem 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 0.85rem 1rem;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .order-card:hover {
+      border-color: #e2e8f0;
+      background: #fcfdff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+
+    .order-index {
+      width: 36px;
+      height: 36px;
+      border-radius: 0.65rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      align-self: center;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      transition: transform 0.15s;
+      user-select: none;
+    }
+    .order-card:hover .order-index {
+      transform: scale(1.06);
+    }
+    .order-index.index-a {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+    .order-index.index-b {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+    .order-index.index-c {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .field-item {
+      display: flex;
+      flex-direction: column;
+      min-width: 140px;
+      flex: 0 1 auto;
+      max-width: 210px;
+      cursor: grab;
+      user-select: none;
+      position: relative;
+      background: #fafcff;
+      padding: 0.55rem 0.9rem 0.6rem 0.9rem;
+      border-radius: 0.75rem;
+      border: 1px solid #eef2f6;
+      transition: all 0.1s;
+    }
+    .field-item:hover {
+      border-color: #dbe4ed;
+      background: #ffffff;
+    }
+    .field-item:active {
+      cursor: grabbing;
+    }
+    .field-item.dragging {
+      opacity: 0.45;
+      background: #eff6ff;
+      border-style: dashed;
+      border-color: #93c5fd;
+    }
+
+    .field-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.3rem;
+      line-height: 1.2;
+    }
+    .field-label > span:first-child {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .drag-handle {
+      color: #cbd5e1;
+      font-size: 0.65rem;
+      margin-right: 3px;
+      opacity: 0.8;
+      transition: color 0.15s;
+    }
+    .field-item:hover .drag-handle {
+      color: #94a3b8;
+    }
+    .remove-field {
+      background: none;
+      border: none;
+      color: #cbd5e1;
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 0 3px;
+      border-radius: 3px;
+      transition: all 0.15s;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .remove-field:hover {
+      color: #ef4444;
+      background: #fee2e2;
+    }
+
+    .field-value {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #0f172a;
+      word-break: break-word;
+      padding: 0.15rem 0.15rem 0.2rem 0;
+      border-bottom: 1px dashed #e2e8f0;
+      min-height: 1.6rem;
+      cursor: text;
+      transition: all 0.1s;
+      border-radius: 3px;
+      line-height: 1.4;
+    }
+    .field-value:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 1px;
+      background: #ffffff;
+      border-bottom-color: transparent;
+    }
+    .field-value[contenteditable="true"]:empty:before {
+      content: attr(placeholder);
+      color: #cbd5e1;
+      font-weight: 400;
+    }
+
+    .field-select {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #0f172a;
+      padding: 0.15rem 0.15rem 0.2rem 0;
+      border: none;
+      background: transparent;
+      border-bottom: 1px dashed #e2e8f0;
+      border-radius: 3px;
+      width: 100%;
+      cursor: pointer;
+      outline: none;
+      font-family: inherit;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.2rem center;
+      background-size: 11px;
+      line-height: 1.4;
+    }
+    .field-select:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 1px;
+      background-color: #ffffff;
+      border-bottom-color: transparent;
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: auto;
+      flex-shrink: 0;
+      align-self: center;
+      padding-left: 0.25rem;
+    }
+    .btn-save-sm {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      padding: 0.4rem 1rem;
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn-save-sm i {
+      font-size: 0.72rem;
+    }
+    .btn-save-sm:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+
+    .module-footer {
+      margin-top: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .footer-left {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .btn-add-sm {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0.6rem 1.35rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 2px 6px rgba(59,130,246,0.2);
+    }
+    .btn-add-sm i {
+      font-size: 0.8rem;
+    }
+    .btn-add-sm:hover {
+      background: #2563eb;
+      box-shadow: 0 3px 10px rgba(59,130,246,0.3);
+    }
+    .btn-add-field {
+      background: #ffffff;
+      border: 1.5px dashed #cbd5e1;
+      color: #475569;
+      padding: 0.55rem 1.15rem;
+      border-radius: 2rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-add-field i {
+      font-size: 0.75rem;
+      color: #3b82f6;
+    }
+    .btn-add-field:hover {
+      background: #f0f9ff;
+      border-color: #93c5fd;
+      color: #1e293b;
+    }
+
+    .empty-message {
+      color: #94a3b8;
+      font-style: italic;
+      padding: 1rem 0;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    /* ========== 看板模块专属样式 ========== */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+    .stat-card:hover {
+      border-color: #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      transform: translateY(-2px);
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      border-radius: 4px 0 0 4px;
+    }
+    .stat-card.stat-blue::before { background: linear-gradient(180deg, #3b82f6, #2563eb); }
+    .stat-card.stat-green::before { background: linear-gradient(180deg, #10b981, #059669); }
+    .stat-card.stat-orange::before { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .stat-card.stat-purple::before { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
+
+    .stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .stat-label i {
+      font-size: 0.7rem;
+      color: #cbd5e1;
+    }
+    .stat-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .stat-sub {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .chart-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-card {
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+    }
+    .chart-card h4 {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .chart-card h4 i {
+      color: #3b82f6;
+      font-size: 0.85rem;
+    }
+    .chart-wrapper {
+      position: relative;
+      height: 220px;
+      width: 100%;
+    }
+
+    /* 分析报告 */
+    .report-section {
+      background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+      border: 1px solid #f1f5f9;
+      border-radius: 1rem;
+      padding: 1.5rem 1.75rem;
+    }
+    .report-section h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .report-section h4 i {
+      color: #8b5cf6;
+      font-size: 0.9rem;
+    }
+    .report-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    .report-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      color: #475569;
+      line-height: 1.5;
+    }
+    .report-list li i {
+      color: #3b82f6;
+      font-size: 0.75rem;
+      margin-top: 0.3rem;
+      flex-shrink: 0;
+    }
+    .report-list li strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .report-badge {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 2rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-left: 0.3rem;
+    }
+    .badge-up {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .badge-warn {
+      background: #fffbeb;
+      color: #d97706;
+    }
+    .badge-info {
+      background: #eff6ff;
+      color: #2563eb;
+    }
+
+    /* ---------- 自定义字段弹窗 ---------- */
+    .custom-field-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 1100;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .custom-field-modal.active {
+      display: flex;
+    }
+    .custom-field-modal-content {
+      background: #ffffff;
+      border-radius: 1.25rem;
+      max-width: 440px;
+      width: 100%;
+      padding: 1.75rem;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      position: relative;
+    }
+    .custom-field-modal-content h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #0f172a;
+    }
+    .custom-field-modal-content h3 i {
+      color: #3b82f6;
+    }
+    .form-group {
+      margin-bottom: 1.1rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.4rem;
+    }
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 0.65rem 0.9rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.65rem;
+      font-size: 0.9rem;
+      color: #0f172a;
+      transition: all 0.15s;
+      outline: none;
+      font-family: inherit;
+      background: #fafcff;
+    }
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: #3b82f6;
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .form-group .hint {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      margin-top: 0.3rem;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+      margin-top: 1.5rem;
+    }
+    .btn-modal {
+      padding: 0.6rem 1.3rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-modal.cancel {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+    }
+    .btn-modal.cancel:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    .btn-modal.confirm {
+      background: #3b82f6;
+      color: white;
+      box-shadow: 0 2px 6px rgba(59,130,246,0.25);
+    }
+    .btn-modal.confirm:hover {
+      background: #2563eb;
+    }
+
+    /* ---------- 预览模态框 ---------- */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-content {
+      background: #ffffff;
+      border-radius: 1.25rem;
+      max-width: 900px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 1.75rem;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 0.9rem;
+      right: 1.25rem;
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      color: #94a3b8;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .modal-close:hover {
+      color: #0f172a;
+    }
+    .preview-title {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      letter-spacing: -0.01em;
+    }
+    .preview-title i {
+      color: #3b82f6;
+      font-size: 1.2rem;
+    }
+    .preview-section {
+      margin-bottom: 1.75rem;
+    }
+    .preview-section h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 0.7rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1.5px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .preview-section h3 i {
+      color: #3b82f6;
+      font-size: 0.9rem;
+    }
+    .preview-card {
+      background: #fafcff;
+      border: 1px solid #f1f5f9;
+      border-radius: 0.75rem;
+      padding: 0.9rem 1.1rem 0.9rem 0.9rem;
+      margin-bottom: 0.65rem;
+      display: flex;
+      gap: 0.9rem;
+      align-items: flex-start;
+    }
+    .preview-index {
+      width: 30px;
+      height: 30px;
+      border-radius: 0.55rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #ffffff;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .preview-index.index-a { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .preview-index.index-b { background: linear-gradient(135deg, #10b981, #059669); }
+    .preview-index.index-c { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .preview-card-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.6rem 1.5rem;
+    }
+    .preview-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .preview-item-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: #94a3b8;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.1rem;
+    }
+    .preview-item-value {
+      font-size: 0.9rem;
+      color: #0f172a;
+      word-break: break-word;
+      font-weight: 500;
+    }
+    .preview-empty {
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 0.9rem;
+      padding: 0.5rem 0;
+    }
+
+    /* 滚动条美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* 响应式 */
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+      .sidebar {
+        width: 100%; height: auto; position: relative;
+        flex-direction: column;
+        padding: 0.75rem 1rem; overflow-x: hidden;
+        border-right: none; border-bottom: 1px solid #e9eef3;
+      }
+      .sidebar-brand {
+        padding: 0.5rem 0.5rem 0.75rem 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 1rem;
+      }
+      .sidebar-section-title { display: none; }
+      .sidebar-nav {
+        padding: 0.5rem 0 0 0;
+        max-height: 55vh;
+      }
+      .sidebar-footer {
+        flex-direction: row;
+        padding: 0.75rem 0 0 0;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 0.5rem;
+      }
+      .sidebar-action { padding: 0.5rem 0.9rem; white-space: nowrap; justify-content: center; }
+      .sidebar-action.primary { justify-content: center; }
+      .main { padding: 1.25rem 1rem 2rem 1rem; }
+      .module-header { padding: 0.9rem 1.25rem; }
+      .module-body { padding: 1.25rem 1.25rem 1.5rem 1.25rem; }
+      .module-title-text h2 { font-size: 1.1rem; }
+      .module-title-icon { width: 38px; height: 38px; font-size: 1rem; }
+      .chart-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 500px) {
+      .field-item { flex: 1 1 45%; max-width: none; min-width: 100px; }
+      .preview-grid { grid-template-columns: 1fr; }
+      .order-index { width: 32px; height: 32px; font-size: 0.8rem; }
+      .stat-value { font-size: 1.35rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- ========= 左侧边栏 ========= -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <i class="fas fa-boxes"></i> 订单管理
+    </div>
+
+    <div class="sidebar-section-title">系统菜单</div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <!-- 客户订单 -->
+      <div class="menu-item open" data-module="A">
+        <div class="menu-trigger active" onclick="toggleMenu(this, event)">
+          <div class="menu-icon"><i class="fas fa-file-invoice"></i></div>
+          <span class="menu-label">客户订单</span>
+          <i class="fas fa-chevron-right menu-arrow"></i>
+        </div>
+        <div class="submenu">
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="handleSubMenu('A', 'add', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">新增订单</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger active" onclick="handleSubMenu('A', 'list', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">订单列表</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="toggleSubMenu(this, event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">字段管理</span>
+              <i class="fas fa-chevron-right submenu-arrow"></i>
+            </div>
+            <div class="subsubmenu">
+              <div class="subsubmenu-item" onclick="openCustomFieldModal('A', event)">
+                <span class="subsub-dot"></span>
+                <span>自定义字段</span>
+              </div>
+              <div class="subsubmenu-item" onclick="scrollToModule('moduleA', event)">
+                <span class="subsub-dot"></span>
+                <span>查看字段布局</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 订单跟进 -->
+      <div class="menu-item" data-module="B">
+        <div class="menu-trigger" onclick="toggleMenu(this, event)">
+          <div class="menu-icon"><i class="fas fa-chart-line"></i></div>
+          <span class="menu-label">订单跟进</span>
+          <i class="fas fa-chevron-right menu-arrow"></i>
+        </div>
+        <div class="submenu">
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="handleSubMenu('B', 'add', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">新增跟进</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger active" onclick="handleSubMenu('B', 'list', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">跟进列表</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="toggleSubMenu(this, event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">字段管理</span>
+              <i class="fas fa-chevron-right submenu-arrow"></i>
+            </div>
+            <div class="subsubmenu">
+              <div class="subsubmenu-item" onclick="openCustomFieldModal('B', event)">
+                <span class="subsub-dot"></span>
+                <span>自定义字段</span>
+              </div>
+              <div class="subsubmenu-item" onclick="scrollToModule('moduleB', event)">
+                <span class="subsub-dot"></span>
+                <span>查看字段布局</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 订单售后跟踪 -->
+      <div class="menu-item" data-module="C">
+        <div class="menu-trigger" onclick="toggleMenu(this, event)">
+          <div class="menu-icon"><i class="fas fa-headset"></i></div>
+          <span class="menu-label">订单售后跟踪</span>
+          <i class="fas fa-chevron-right menu-arrow"></i>
+        </div>
+        <div class="submenu">
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="handleSubMenu('C', 'add', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">新增售后跟踪</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger active" onclick="handleSubMenu('C', 'list', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">售后列表</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="toggleSubMenu(this, event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">字段管理</span>
+              <i class="fas fa-chevron-right submenu-arrow"></i>
+            </div>
+            <div class="subsubmenu">
+              <div class="subsubmenu-item" onclick="openCustomFieldModal('C', event)">
+                <span class="subsub-dot"></span>
+                <span>自定义字段</span>
+              </div>
+              <div class="subsubmenu-item" onclick="scrollToModule('moduleC', event)">
+                <span class="subsub-dot"></span>
+                <span>查看字段布局</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 订单看板 (放在最后) -->
+      <div class="menu-item" data-module="D">
+        <div class="menu-trigger" onclick="toggleMenu(this, event)">
+          <div class="menu-icon"><i class="fas fa-chart-pie"></i></div>
+          <span class="menu-label">订单看板</span>
+          <i class="fas fa-chevron-right menu-arrow"></i>
+        </div>
+        <div class="submenu">
+          <div class="submenu-item">
+            <div class="submenu-trigger active" onclick="handleSubMenu('D', 'dashboard', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">数据概览</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="handleSubMenu('D', 'report', event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">总结报告</span>
+            </div>
+          </div>
+          <div class="submenu-item">
+            <div class="submenu-trigger" onclick="toggleSubMenu(this, event)">
+              <span class="sub-dot"></span>
+              <span class="sub-label">分析维度</span>
+              <i class="fas fa-chevron-right submenu-arrow"></i>
+            </div>
+            <div class="subsubmenu">
+              <div class="subsubmenu-item" onclick="scrollToModule('moduleD', event)">
+                <span class="subsub-dot"></span>
+                <span>客户区域分析</span>
+              </div>
+              <div class="subsubmenu-item" onclick="scrollToModule('moduleD', event)">
+                <span class="subsub-dot"></span>
+                <span>订单金额分析</span>
+              </div>
+              <div class="subsubmenu-item" onclick="scrollToModule('moduleD', event)">
+                <span class="subsub-dot"></span>
+                <span>订单状态分析</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="sidebar-action" onclick="openPreview()">
+        <i class="fas fa-eye"></i> 预览全部
+      </button>
+      <button class="sidebar-action primary" onclick="exportPDF()">
+        <i class="fas fa-file-pdf"></i> 导出PDF
+      </button>
+    </div>
+  </aside>
+
+  <!-- ========= 右侧主内容 ========= -->
+  <main class="main">
+    <div class="main-topbar">
+      <div>
+        <div class="breadcrumb" id="breadcrumb">
+          <span>工作台</span>
+          <i class="fas fa-chevron-right"></i>
+          <span>客户订单</span>
+          <i class="fas fa-chevron-right"></i>
+          <span>订单列表</span>
+        </div>
+        <h1><i class="fas fa-clipboard-list"></i> 订单工作台</h1>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-preview" onclick="openPreview()"><i class="fas fa-eye"></i> 预览</button>
+        <button class="btn-export" onclick="exportPDF()"><i class="fas fa-file-pdf"></i> 导出PDF</button>
+      </div>
+    </div>
+
+    <!-- ========== 客户订单模块 ========== -->
+    <div class="module" id="moduleA">
+      <div class="module-header" onclick="toggleModule('moduleA')">
+        <div class="module-title">
+          <div class="module-title-icon icon-a"><i class="fas fa-file-invoice"></i></div>
+          <div class="module-title-text">
+            <h2>客户订单</h2>
+            <span class="module-subtitle">订单信息维护 · 客户/型号/数量</span>
+          </div>
+        </div>
+        <div class="module-header-right">
+          <span class="module-count" id="countA">0 条</span>
+          <div class="toggle-icon"><i class="fas fa-chevron-down"></i></div>
+        </div>
+      </div>
+      <div class="module-body">
+        <div id="orderAContainer" class="row-container"></div>
+        <div class="module-footer">
+          <div class="footer-left">
+            <button class="btn-add-sm" onclick="addOrderA()"><i class="fas fa-plus"></i> 新增订单</button>
+            <button class="btn-add-field" onclick="openCustomFieldModal('A')"><i class="fas fa-tag"></i> 自定义字段</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 订单跟进模块 ========== -->
+    <div class="module" id="moduleB">
+      <div class="module-header" onclick="toggleModule('moduleB')">
+        <div class="module-title">
+          <div class="module-title-icon icon-b"><i class="fas fa-chart-line"></i></div>
+          <div class="module-title-text">
+            <h2>订单跟进</h2>
+            <span class="module-subtitle">进度跟踪 · 款项与单据</span>
+          </div>
+        </div>
+        <div class="module-header-right">
+          <span class="module-count" id="countB">0 条</span>
+          <div class="toggle-icon"><i class="fas fa-chevron-down"></i></div>
+        </div>
+      </div>
+      <div class="module-body">
+        <div id="orderBContainer" class="row-container"></div>
+        <div class="module-footer">
+          <div class="footer-left">
+            <button class="btn-add-sm" onclick="addOrderB()"><i class="fas fa-plus"></i> 新增跟进</button>
+            <button class="btn-add-field" onclick="openCustomFieldModal('B')"><i class="fas fa-tag"></i> 自定义字段</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 订单售后跟踪模块 ========== -->
+    <div class="module" id="moduleC">
+      <div class="module-header" onclick="toggleModule('moduleC')">
+        <div class="module-title">
+          <div class="module-title-icon icon-c"><i class="fas fa-headset"></i></div>
+          <div class="module-title-text">
+            <h2>订单售后跟踪</h2>
+            <span class="module-subtitle">杂费/ETD · 电放与归档</span>
+          </div>
+        </div>
+        <div class="module-header-right">
+          <span class="module-count" id="countC">0 条</span>
+          <div class="toggle-icon"><i class="fas fa-chevron-down"></i></div>
+        </div>
+      </div>
+      <div class="module-body">
+        <div id="orderCContainer" class="row-container"></div>
+        <div class="module-footer">
+          <div class="footer-left">
+            <button class="btn-add-sm" onclick="addOrderC()"><i class="fas fa-plus"></i> 新增售后跟踪</button>
+            <button class="btn-add-field" onclick="openCustomFieldModal('C')"><i class="fas fa-tag"></i> 自定义字段</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 订单看板模块 (放在最后) ========== -->
+    <div class="module" id="moduleD">
+      <div class="module-header" onclick="toggleModule('moduleD')">
+        <div class="module-title">
+          <div class="module-title-icon icon-d"><i class="fas fa-chart-pie"></i></div>
+          <div class="module-title-text">
+            <h2>订单看板</h2>
+            <span class="module-subtitle">数据概览 · 区域/金额/状态分析</span>
+          </div>
+        </div>
+        <div class="module-header-right">
+          <span class="module-count" id="countD">实时统计</span>
+          <div class="toggle-icon"><i class="fas fa-chevron-down"></i></div>
+        </div>
+      </div>
+      <div class="module-body">
+        <!-- 统计卡片 -->
+        <div class="dashboard-grid" id="dashboardStats">
+          <div class="stat-card stat-blue">
+            <div class="stat-label"><i class="fas fa-file-invoice"></i> 订单总数</div>
+            <div class="stat-value" id="statTotalOrders">0</div>
+            <div class="stat-sub" id="statTotalSub">共 0 个客户</div>
+          </div>
+          <div class="stat-card stat-green">
+            <div class="stat-label"><i class="fas fa-dollar-sign"></i> 订单总金额</div>
+            <div class="stat-value" id="statTotalAmount">$0</div>
+            <div class="stat-sub" id="statAmountSub">平均 $0 / 单</div>
+          </div>
+          <div class="stat-card stat-orange">
+            <div class="stat-label"><i class="fas fa-truck"></i> 出货安排</div>
+            <div class="stat-value" id="statShipping">0</div>
+            <div class="stat-sub" id="statShippingSub">进行中订单</div>
+          </div>
+          <div class="stat-card stat-purple">
+            <div class="stat-label"><i class="fas fa-exclamation-triangle"></i> 紧急订单</div>
+            <div class="stat-value" id="statUrgent">0</div>
+            <div class="stat-sub" id="statUrgentSub">需要优先处理</div>
+          </div>
+        </div>
+
+        <!-- 图表区 -->
+        <div class="chart-row">
+          <div class="chart-card">
+            <h4><i class="fas fa-chart-bar"></i> 客户区域分布</h4>
+            <div class="chart-wrapper">
+              <canvas id="chartRegion"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4><i class="fas fa-chart-pie"></i> 订单状态分布</h4>
+            <div class="chart-wrapper">
+              <canvas id="chartStatus"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <h4><i class="fas fa-chart-line"></i> 订单金额分布</h4>
+            <div class="chart-wrapper">
+              <canvas id="chartAmount"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4><i class="fas fa-chart-area"></i> 客户类型分布</h4>
+            <div class="chart-wrapper">
+              <canvas id="chartCustomerType"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- 阶段性总结报告 -->
+        <div class="report-section">
+          <h4><i class="fas fa-file-alt"></i> 阶段性总结报告</h4>
+          <ul class="report-list" id="reportList">
+            <li><i class="fas fa-circle"></i> 暂无数据，请先录入订单。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ========= 自定义字段弹窗 ========= -->
+<div class="custom-field-modal" id="customFieldModal">
+  <div class="custom-field-modal-content">
+    <h3><i class="fas fa-tag"></i> 添加自定义字段</h3>
+    <div class="form-group">
+      <label>字段名称</label>
+      <input type="text" id="customFieldName" placeholder="例如：备注、供应商、颜色..." maxlength="20">
+      <div class="hint">最多20个字符</div>
+    </div>
+    <div class="form-group">
+      <label>字段类型</label>
+      <select id="customFieldType">
+        <option value="text">文本 (手动输入)</option>
+        <option value="select">下拉选择</option>
+      </select>
+    </div>
+    <div class="form-group" id="optionsGroup" style="display: none;">
+      <label>选项内容 (用逗号分隔)</label>
+      <input type="text" id="customFieldOptions" placeholder="选项1,选项2,选项3">
+      <div class="hint">多个选项请用英文逗号分隔</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal cancel" onclick="closeCustomFieldModal()">取消</button>
+      <button class="btn-modal confirm" onclick="confirmCustomField()"><i class="fas fa-check"></i> 添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========= 预览模态框 ========= -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal-content" id="previewContent">
+    <button class="modal-close" onclick="closePreview()">&times;</button>
+    <div id="previewInner"></div>
+  </div>
+</div>
+
+<script>
+  // ---------- 菜单交互 ----------
+  function toggleMenu(triggerEl, event) {
+    if (event) event.stopPropagation();
+    const menuItem = triggerEl.closest('.menu-item');
+    const isOpen = menuItem.classList.contains('open');
+    if (isOpen) {
+      menuItem.classList.remove('open');
+    } else {
+      menuItem.classList.add('open');
+    }
+    document.querySelectorAll('.menu-trigger').forEach(t => t.classList.remove('active'));
+    triggerEl.classList.add('active');
+    const label = triggerEl.querySelector('.menu-label').textContent;
+    updateBreadcrumb(label, '数据概览');
+  }
+
+  function toggleSubMenu(triggerEl, event) {
+    if (event) event.stopPropagation();
+    const submenuItem = triggerEl.closest('.submenu-item');
+    submenuItem.classList.toggle('open');
+  }
+
+  function handleSubMenu(moduleType, action, event) {
+    if (event) event.stopPropagation();
+    document.querySelectorAll('.submenu-trigger').forEach(t => t.classList.remove('active'));
+    const trigger = event.target.closest('.submenu-trigger');
+    if (trigger) trigger.classList.add('active');
+    const menuItem = trigger.closest('.menu-item');
+    const moduleName = menuItem.querySelector('.menu-label').textContent;
+
+    if (moduleType === 'D') {
+      scrollToModule('moduleD', event);
+      if (action === 'report') {
+        setTimeout(() => {
+          const reportSection = document.querySelector('.report-section');
+          if (reportSection) reportSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+        updateBreadcrumb(moduleName, '总结报告');
+      } else {
+        updateBreadcrumb(moduleName, '数据概览');
+      }
+      return;
+    }
+
+    const moduleId = 'module' + moduleType;
+    scrollToModule(moduleId, event);
+    if (action === 'add') {
+      if (moduleType === 'A') addOrderA();
+      else if (moduleType === 'B') addOrderB();
+      else if (moduleType === 'C') addOrderC();
+      updateBreadcrumb(moduleName, '新增订单');
+    } else {
+      updateBreadcrumb(moduleName, '订单列表');
+    }
+  }
+
+  function updateBreadcrumb(...items) {
+    const bc = document.getElementById('breadcrumb');
+    bc.innerHTML = '<span>工作台</span>';
+    items.forEach((item) => {
+      bc.innerHTML += `<i class="fas fa-chevron-right"></i><span>${item}</span>`;
+    });
+  }
+
+  // ---------- 全局辅助函数 ----------
+  function toggleModule(moduleId) {
+    const module = document.getElementById(moduleId);
+    if (module) module.classList.toggle('collapsed');
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+  }
+
+  function scrollToModule(moduleId, event) {
+    if (event) event.stopPropagation();
+    const el = document.getElementById(moduleId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (event && event.target) {
+        const menuTrigger = event.target.closest('.menu-trigger');
+        if (menuTrigger) {
+          document.querySelectorAll('.menu-trigger').forEach(t => t.classList.remove('active'));
+          menuTrigger.classList.add('active');
+        }
+      }
+    }
+  }
+
+  function updateCounts() {
+    document.getElementById('countA').textContent = stateA.length + ' 条';
+    document.getElementById('countB').textContent = stateB.length + ' 条';
+    document.getElementById('countC').textContent = stateC.length + ' 条';
+  }
+
+  // 创建字段元素
+  function createFieldElement(fieldId, label, value, fieldType = 'text', options = null, editable = true, removable = true) {
+    const fieldDiv = document.createElement('div');
+    fieldDiv.className = 'field-item';
+    fieldDiv.dataset.fieldId = fieldId;
+    fieldDiv.dataset.fieldLabel = label;
+    fieldDiv.dataset.fieldType = fieldType;
+    if (options) fieldDiv.dataset.options = JSON.stringify(options);
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'field-label';
+
+    const leftSpan = document.createElement('span');
+    const dragSpan = document.createElement('i');
+    dragSpan.className = 'fas fa-grip-vertical drag-handle';
+    const labelText = document.createElement('span');
+    labelText.textContent = label;
+    leftSpan.appendChild(dragSpan);
+    leftSpan.appendChild(labelText);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-field';
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.title = '移除此字段';
+    if (removable) {
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fieldDiv.remove();
+      });
+    } else {
+      removeBtn.style.visibility = 'hidden';
+    }
+
+    labelDiv.appendChild(leftSpan);
+    labelDiv.appendChild(removeBtn);
+
+    let valueElement;
+
+    if (fieldType === 'select' && options && options.length > 0) {
+      valueElement = document.createElement('select');
+      valueElement.className = 'field-select';
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.textContent = '-- 请选择 --';
+      valueElement.appendChild(emptyOpt);
+      options.forEach(opt => {
+        const optionEl = document.createElement('option');
+        optionEl.value = opt;
+        optionEl.textContent = opt;
+        if (opt === value) optionEl.selected = true;
+        valueElement.appendChild(optionEl);
+      });
+      valueElement.addEventListener('mousedown', (e) => e.stopPropagation());
+    } else {
+      valueElement = document.createElement('div');
+      valueElement.className = 'field-value';
+      valueElement.contentEditable = editable;
+      valueElement.setAttribute('placeholder', '点击编辑');
+      valueElement.textContent = value || '';
+      valueElement.addEventListener('mousedown', (e) => e.stopPropagation());
+    }
+
+    fieldDiv.appendChild(labelDiv);
+    fieldDiv.appendChild(valueElement);
+    return fieldDiv;
+  }
+
+  // ---------- 字段定义 ----------
+  const fieldsA = [
+    { id: 'order_no', label: '订单流水号', default: '', type: 'text' },
+    { id: 'product_model', label: '产品型号', default: '', type: 'text' },
+    { id: 'customer_name', label: '客户名称', default: '', type: 'text' },
+    { id: 'customer_type', label: '客户类型', default: '', type: 'text' },
+    { id: 'region', label: '客户区域', default: '', type: 'select', options: ['华东','华南','华北','华中','西南','西北','东北'] },
+    { id: 'quantity', label: '订单数量', default: '', type: 'text' }
+  ];
+
+  const fieldsB = [
+    { id: 'customer_name_b', label: '客户名称', default: '', type: 'text' },
+    { id: 'order_status', label: '订单状态', default: '', type: 'select', options: ['待付款','已付款','生产中','已发货','已完成'] },
+    { id: 'amount', label: '订单金额', default: '', type: 'text' },
+    { id: 'progress_ship', label: '出货安排', default: '', type: 'text' },
+    { id: 'trade_terms', label: '贸易条款', default: '', type: 'select', options: ['FOB','CIF','EXW','DDP','FCA','CPT'] },
+    { id: 'payment_terms', label: '付款条款', default: '', type: 'select', options: ['T/T','L/C','D/P','D/A','O/A'] },
+    { id: 'payment_status', label: '付款状态', default: '', type: 'text' },
+    { id: 'shipping_docs', label: '出货单据', default: '', type: 'text' },
+    { id: 'urgency', label: '紧急程度', default: '', type: 'select', options: ['正常','紧急'] }
+  ];
+
+  const fieldsC = [
+    { id: 'customer_name_c', label: '客户名称', default: '', type: 'text' },
+    { id: 'misc_fee', label: '杂费明细', default: '', type: 'select', options: ['报关费','拖车费','文件费','其他'] },
+    { id: 'etd_eat', label: '预计到货(ETD/EAT)', default: '', type: 'text' },
+    { id: 'telex_status', label: '电放/正本', default: '', type: 'select', options: ['电放','正本','未定'] },
+    { id: 'archive_status', label: '归档状态', default: '', type: 'select', options: ['已归档','未归档','部分归档'] }
+  ];
+
+  const customFields = { A: [], B: [], C: [] };
+
+  // ---------- 初始化数据 ----------
+  function createInitialOrders() {
+    const ordersA = [
+      { id: uid(), fields: { order_no: 'SO-2025-001', product_model: 'X200', customer_name: 'ABC Corp', customer_type: 'VIP', region: '华东', quantity: '500' } },
+      { id: uid(), fields: { order_no: 'SO-2025-002', product_model: 'Y300', customer_name: 'XYZ Ltd', customer_type: '常规', region: '华南', quantity: '1,200' } },
+      { id: uid(), fields: { order_no: 'SO-2025-003', product_model: 'Z100', customer_name: 'Global Inc', customer_type: 'VIP', region: '华北', quantity: '800' } }
+    ];
+    const ordersB = [
+      { id: uid(), fields: { customer_name_b: 'ABC Corp', order_status: '生产中', amount: '$12,500', progress_ship: '下周', trade_terms: 'FOB', payment_terms: 'T/T', payment_status: '已付定金', shipping_docs: '已备', urgency: '紧急' } },
+      { id: uid(), fields: { customer_name_b: 'XYZ Ltd', order_status: '已发货', amount: '$8,200', progress_ship: '已发', trade_terms: 'CIF', payment_terms: 'L/C', payment_status: '尾款未付', shipping_docs: '已出', urgency: '正常' } },
+      { id: uid(), fields: { customer_name_b: 'Global Inc', order_status: '已完成', amount: '$22,000', progress_ship: '完成', trade_terms: 'DDP', payment_terms: 'T/T', payment_status: '已结清', shipping_docs: '已归档', urgency: '正常' } }
+    ];
+    const ordersC = [
+      { id: uid(), fields: { customer_name_c: 'XYZ Ltd', misc_fee: '文件费, 报关费', etd_eat: '2025-06-15', telex_status: '电放', archive_status: '未归档' } }
+    ];
+    return { ordersA, ordersB, ordersC };
+  }
+
+  const { ordersA: initialOrdersA, ordersB: initialOrdersB, ordersC: initialOrdersC } = createInitialOrders();
+
+  let stateA = [...initialOrdersA];
+  let stateB = [...initialOrdersB];
+  let stateC = [...initialOrdersC];
+
+  // ---------- 渲染模块 ----------
+  function renderModuleA() {
+    const container = document.getElementById('orderAContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    if (stateA.length === 0) {
+      container.innerHTML = '<div class="empty-message">暂无订单，点击下方新增</div>';
+    } else {
+      const allFields = [...fieldsA, ...customFields.A];
+      stateA.forEach((order, index) => {
+        container.appendChild(createOrderCard('A', order, allFields, index));
+      });
+      initSortableOnCards(container);
+    }
+    updateCounts();
+    refreshDashboard();
+  }
+
+  function renderModuleB() {
+    const container = document.getElementById('orderBContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    if (stateB.length === 0) {
+      container.innerHTML = '<div class="empty-message">暂无跟进订单，点击下方新增</div>';
+    } else {
+      const allFields = [...fieldsB, ...customFields.B];
+      stateB.forEach((order, index) => {
+        container.appendChild(createOrderCard('B', order, allFields, index));
+      });
+      initSortableOnCards(container);
+    }
+    updateCounts();
+    refreshDashboard();
+  }
+
+  function renderModuleC() {
+    const container = document.getElementById('orderCContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    if (stateC.length === 0) {
+      container.innerHTML = '<div class="empty-message">暂无售后跟踪，点击下方新增</div>';
+    } else {
+      const allFields = [...fieldsC, ...customFields.C];
+      stateC.forEach((order, index) => {
+        container.appendChild(createOrderCard('C', order, allFields, index));
+      });
+      initSortableOnCards(container);
+    }
+    updateCounts();
+    refreshDashboard();
+  }
+
+  function initSortableOnCards(container) {
+    container.querySelectorAll('.order-card').forEach(card => {
+      if (card._sortable) return;
+      new Sortable(card, {
+        animation: 140,
+        handle: '.field-item',
+        ghostClass: 'dragging',
+        group: 'fields-' + card.dataset.orderId,
+        onEnd: function() { }
+      });
+      card._sortable = true;
+    });
+  }
+
+  function createOrderCard(moduleType, order, fieldDefs, index) {
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    card.dataset.orderId = order.id;
+    card.dataset.module = moduleType;
+
+    const indexBadge = document.createElement('div');
+    const moduleClass = moduleType === 'A' ? 'index-a' : (moduleType === 'B' ? 'index-b' : 'index-c');
+    indexBadge.className = 'order-index ' + moduleClass;
+    indexBadge.textContent = (index + 1);
+    indexBadge.title = '序号 ' + (index + 1);
+    card.appendChild(indexBadge);
+
+    fieldDefs.forEach(fieldDef => {
+      const fieldId = fieldDef.id;
+      const label = fieldDef.label;
+      const value = order.fields[fieldId] || '';
+      const fieldType = fieldDef.type || 'text';
+      const options = fieldDef.options || null;
+
+      const fieldEl = createFieldElement(fieldId, label, value, fieldType, options, true, true);
+
+      if (fieldType === 'select') {
+        const selectEl = fieldEl.querySelector('.field-select');
+        if (selectEl) {
+          selectEl.addEventListener('change', (e) => {
+            order.fields[fieldId] = e.target.value;
+            refreshDashboard();
+          });
+        }
+      } else {
+        const valueDiv = fieldEl.querySelector('.field-value');
+        if (valueDiv) {
+          valueDiv.addEventListener('blur', (e) => {
+            order.fields[fieldId] = e.target.textContent.trim();
+            refreshDashboard();
+          });
+        }
+      }
+
+      card.appendChild(fieldEl);
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-save-sm';
+    saveBtn.innerHTML = '<i class="fas fa-check"></i> 保存';
+    saveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fields = card.querySelectorAll('.field-item');
+      fields.forEach(f => {
+        const fieldId = f.dataset.fieldId;
+        const fieldType = f.dataset.fieldType;
+        if (fieldType === 'select') {
+          const selectEl = f.querySelector('.field-select');
+          if (selectEl) order.fields[fieldId] = selectEl.value;
+        } else {
+          const valEl = f.querySelector('.field-value');
+          if (valEl) order.fields[fieldId] = valEl.textContent.trim();
+        }
+      });
+      refreshDashboard();
+      const originalText = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<i class="fas fa-check"></i> 已保存';
+      saveBtn.style.background = '#ecfdf5';
+      saveBtn.style.borderColor = '#a7f3d0';
+      saveBtn.style.color = '#059669';
+      setTimeout(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.style.background = '';
+        saveBtn.style.borderColor = '';
+        saveBtn.style.color = '';
+      }, 1200);
+    });
+
+    actions.appendChild(saveBtn);
+    card.appendChild(actions);
+
+    return card;
+  }
+
+  // ---------- 新增订单 ----------
+  function addOrderA() {
+    const newOrder = {
+      id: uid(),
+      fields: { order_no: '新订单', product_model: '', customer_name: '', customer_type: '', region: '', quantity: '' }
+    };
+    customFields.A.forEach(cf => { newOrder.fields[cf.id] = ''; });
+    stateA.push(newOrder);
+    renderModuleA();
+  }
+
+  function addOrderB() {
+    const newOrder = {
+      id: uid(),
+      fields: { customer_name_b: '', order_status: '', amount: '', progress_ship: '', trade_terms: '', payment_terms: '', payment_status: '', shipping_docs: '', urgency: '' }
+    };
+    customFields.B.forEach(cf => { newOrder.fields[cf.id] = ''; });
+    stateB.push(newOrder);
+    renderModuleB();
+  }
+
+  function addOrderC() {
+    const newOrder = {
+      id: uid(),
+      fields: { customer_name_c: '', misc_fee: '', etd_eat: '', telex_status: '', archive_status: '' }
+    };
+    customFields.C.forEach(cf => { newOrder.fields[cf.id] = ''; });
+    stateC.push(newOrder);
+    renderModuleC();
+  }
+
+  // ========== 看板数据刷新 ==========
+  let chartRegionInstance = null;
+  let chartStatusInstance = null;
+  let chartAmountInstance = null;
+  let chartCustomerTypeInstance = null;
+
+  function refreshDashboard() {
+    const totalOrders = stateA.length + stateB.length + stateC.length;
+    let totalAmount = 0;
+    let shippingCount = 0;
+    let urgentCount = 0;
+    const customerSet = new Set();
+
+    stateB.forEach(order => {
+      const amountStr = (order.fields.amount || '').replace(/[^0-9.]/g, '');
+      const amount = parseFloat(amountStr);
+      if (!isNaN(amount)) totalAmount += amount;
+
+      const status = order.fields.order_status || '';
+      if (status === '生产中' || status === '已发货') shippingCount++;
+
+      const urgency = order.fields.urgency || '';
+      if (urgency === '紧急') urgentCount++;
+
+      const customerName = order.fields.customer_name_b || '';
+      if (customerName) customerSet.add(customerName);
+    });
+
+    stateA.forEach(order => {
+      const customerName = order.fields.customer_name || '';
+      if (customerName) customerSet.add(customerName);
+    });
+
+    document.getElementById('statTotalOrders').textContent = totalOrders;
+    document.getElementById('statTotalSub').textContent = `共 ${customerSet.size} 个客户`;
+
+    document.getElementById('statTotalAmount').textContent = '$' + totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    document.getElementById('statAmountSub').textContent = stateB.length > 0 ? `平均 $${Math.round(totalAmount / stateB.length).toLocaleString('en-US')} / 单` : '平均 $0 / 单';
+
+    document.getElementById('statShipping').textContent = shippingCount;
+    document.getElementById('statShippingSub').textContent = '进行中订单';
+
+    document.getElementById('statUrgent').textContent = urgentCount;
+    document.getElementById('statUrgentSub').textContent = urgentCount > 0 ? '需要优先处理' : '暂无紧急订单';
+
+    // 2. 客户区域分布
+    const regionCount = {};
+    stateA.forEach(order => {
+      const region = order.fields.region || '未设置';
+      regionCount[region] = (regionCount[region] || 0) + 1;
+    });
+
+    const regionLabels = Object.keys(regionCount);
+    const regionData = Object.values(regionCount);
+
+    if (chartRegionInstance) chartRegionInstance.destroy();
+    const ctxRegion = document.getElementById('chartRegion').getContext('2d');
+    chartRegionInstance = new Chart(ctxRegion, {
+      type: 'bar',
+      data: {
+        labels: regionLabels.length > 0 ? regionLabels : ['暂无数据'],
+        datasets: [{
+          label: '订单数量',
+          data: regionData.length > 0 ? regionData : [0],
+          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'],
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 32
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            padding: 10,
+            cornerRadius: 8,
+            titleFont: { size: 12, weight: '600' },
+            bodyFont: { size: 12 }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { stepSize: 1, color: '#94a3b8', font: { size: 11 } },
+            grid: { color: '#f1f5f9' }
+          },
+          x: {
+            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+
+    // 3. 订单状态分布
+    const statusCount = {};
+    stateB.forEach(order => {
+      const status = order.fields.order_status || '未设置';
+      statusCount[status] = (statusCount[status] || 0) + 1;
+    });
+
+    const statusLabels = Object.keys(statusCount);
+    const statusData = Object.values(statusCount);
+
+    if (chartStatusInstance) chartStatusInstance.destroy();
+    const ctxStatus = document.getElementById('chartStatus').getContext('2d');
+    chartStatusInstance = new Chart(ctxStatus, {
+      type: 'doughnut',
+      data: {
+        labels: statusLabels.length > 0 ? statusLabels : ['暂无数据'],
+        datasets: [{
+          data: statusData.length > 0 ? statusData : [1],
+          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'],
+          borderWidth: 3,
+          borderColor: '#ffffff',
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              padding: 12,
+              font: { size: 11 },
+              color: '#475569'
+            }
+          },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            padding: 10,
+            cornerRadius: 8
+          }
+        }
+      }
+    });
+
+    // 4. 订单金额分布
+    const amountByCustomer = {};
+    stateB.forEach(order => {
+      const customer = order.fields.customer_name_b || '未知客户';
+      const amountStr = (order.fields.amount || '').replace(/[^0-9.]/g, '');
+      const amount = parseFloat(amountStr);
+      if (!isNaN(amount)) {
+        amountByCustomer[customer] = (amountByCustomer[customer] || 0) + amount;
+      }
+    });
+
+    const amountLabels = Object.keys(amountByCustomer);
+    const amountData = Object.values(amountByCustomer);
+
+    if (chartAmountInstance) chartAmountInstance.destroy();
+    const ctxAmount = document.getElementById('chartAmount').getContext('2d');
+    chartAmountInstance = new Chart(ctxAmount, {
+      type: 'bar',
+      data: {
+        labels: amountLabels.length > 0 ? amountLabels : ['暂无数据'],
+        datasets: [{
+          label: '订单金额 ($)',
+          data: amountData.length > 0 ? amountData : [0],
+          backgroundColor: ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'],
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 28
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              label: function(context) {
+                return '$' + context.parsed.x.toLocaleString('en-US');
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 11 },
+              callback: function(value) { return '$' + value.toLocaleString('en-US'); }
+            },
+            grid: { color: '#f1f5f9' }
+          },
+          y: {
+            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+
+    // 5. 客户类型分布
+    const customerTypeCount = {};
+    stateA.forEach(order => {
+      const type = order.fields.customer_type || '未设置';
+      customerTypeCount[type] = (customerTypeCount[type] || 0) + 1;
+    });
+
+    const typeLabels = Object.keys(customerTypeCount);
+    const typeData = Object.values(customerTypeCount);
+
+    if (chartCustomerTypeInstance) chartCustomerTypeInstance.destroy();
+    const ctxType = document.getElementById('chartCustomerType').getContext('2d');
+    chartCustomerTypeInstance = new Chart(ctxType, {
+      type: 'polarArea',
+      data: {
+        labels: typeLabels.length > 0 ? typeLabels : ['暂无数据'],
+        datasets: [{
+          data: typeData.length > 0 ? typeData : [1],
+          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'],
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              padding: 12,
+              font: { size: 11 },
+              color: '#475569'
+            }
+          },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            padding: 10,
+            cornerRadius: 8
+          }
+        },
+        scales: {
+          r: {
+            ticks: { display: false },
+            grid: { color: '#f1f5f9' }
+          }
+        }
+      }
+    });
+
+    // 6. 生成总结报告
+    generateReport(totalOrders, totalAmount, shippingCount, urgentCount, regionCount, statusCount, customerSet.size);
+  }
+
+  function generateReport(totalOrders, totalAmount, shippingCount, urgentCount, regionCount, statusCount, customerCount) {
+    const reportList = document.getElementById('reportList');
+    reportList.innerHTML = '';
+
+    if (totalOrders === 0) {
+      reportList.innerHTML = '<li><i class="fas fa-circle"></i> 暂无数据，请先录入订单。</li>';
+      return;
+    }
+
+    const reports = [];
+
+    reports.push({
+      icon: 'fa-chart-simple',
+      html: `当前系统共有 <strong>${totalOrders}</strong> 条订单记录，涉及 <strong>${customerCount}</strong> 个客户，订单总金额约 <strong>$${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong>。`
+    });
+
+    if (Object.keys(regionCount).length > 0) {
+      const sortedRegions = Object.entries(regionCount).sort((a, b) => b[1] - a[1]);
+      const topRegion = sortedRegions[0];
+      const regionStr = sortedRegions.map(([k, v]) => `${k}(${v})`).join('、');
+      reports.push({
+        icon: 'fa-map-location-dot',
+        html: `客户区域分布：<strong>${regionStr}</strong>。其中 <strong>${topRegion[0]}</strong> 区域订单最多，共 <strong>${topRegion[1]}</strong> 单，建议重点关注该区域的客户维护与市场拓展。`
+      });
+    } else {
+      reports.push({
+        icon: 'fa-map-location-dot',
+        html: `客户区域信息尚未录入，建议在「客户订单」模块中补充客户的区域字段，以便进行区域化分析和销售策略制定。`
+      });
+    }
+
+    if (Object.keys(statusCount).length > 0) {
+      const sortedStatus = Object.entries(statusCount).sort((a, b) => b[1] - a[1]);
+      const statusStr = sortedStatus.map(([k, v]) => `${k}(${v})`).join('、');
+      const inProgress = (statusCount['生产中'] || 0) + (statusCount['已发货'] || 0);
+      reports.push({
+        icon: 'fa-list-check',
+        html: `订单状态分布：<strong>${statusStr}</strong>。其中进行中订单（生产中+已发货）共 <strong>${inProgress}</strong> 单，占全部跟进订单的 <strong>${stateB.length > 0 ? Math.round(inProgress / stateB.length * 100) : 0}%</strong>。`
+      });
+    }
+
+    if (totalAmount > 0) {
+      const avgAmount = Math.round(totalAmount / stateB.length);
+      reports.push({
+        icon: 'fa-sack-dollar',
+        html: `订单总金额 <strong>$${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong>，平均每单 <strong>$${avgAmount.toLocaleString('en-US')}</strong>。建议关注高金额订单的跟进与交付，优先保障其资源投入。`
+      });
+    }
+
+    if (urgentCount > 0) {
+      reports.push({
+        icon: 'fa-triangle-exclamation',
+        html: `<span class="report-badge badge-warn">需关注</span> 当前有 <strong>${urgentCount}</strong> 条紧急订单，建议优先处理，确保按时交付，避免影响客户满意度。`
+      });
+    } else {
+      reports.push({
+        icon: 'fa-circle-check',
+        html: `<span class="report-badge badge-up">良好</span> 当前无紧急订单，整体订单节奏平稳，可按计划推进。`
+      });
+    }
+
+    if (shippingCount > 0) {
+      reports.push({
+        icon: 'fa-truck-fast',
+        html: `<span class="report-badge badge-info">进行中</span> 有 <strong>${shippingCount}</strong> 条订单处于出货安排阶段（生产中/已发货），建议与仓储和物流部门保持沟通，确保按时出货。`
+      });
+    }
+
+    reports.push({
+      icon: 'fa-lightbulb',
+      html: `综合建议：${Object.keys(regionCount).length > 1 ? '可针对重点区域制定差异化销售策略，' : ''}${urgentCount > 0 ? '优先处理紧急订单，' : ''}同时定期更新订单状态，保持数据看板的实时性和准确性。`
+    });
+
+    reports.forEach(item => {
+      const li = document.createElement('li');
+      li.innerHTML = `<i class="fas ${item.icon}"></i><div>${item.html}</div>`;
+      reportList.appendChild(li);
+    });
+  }
+
+  // ---------- 自定义字段弹窗 ----------
+  let currentModuleType = null;
+
+  function openCustomFieldModal(moduleType, event) {
+    if (event) event.stopPropagation();
+    currentModuleType = moduleType;
+    document.getElementById('customFieldName').value = '';
+    document.getElementById('customFieldType').value = 'text';
+    document.getElementById('customFieldOptions').value = '';
+    document.getElementById('optionsGroup').style.display = 'none';
+    document.getElementById('customFieldModal').classList.add('active');
+    document.getElementById('customFieldName').focus();
+  }
+
+  function closeCustomFieldModal() {
+    document.getElementById('customFieldModal').classList.remove('active');
+    currentModuleType = null;
+  }
+
+  document.getElementById('customFieldType').addEventListener('change', function() {
+    document.getElementById('optionsGroup').style.display = this.value === 'select' ? 'block' : 'none';
+  });
+
+  function confirmCustomField() {
+    const nameInput = document.getElementById('customFieldName');
+    const typeSelect = document.getElementById('customFieldType');
+    const optionsInput = document.getElementById('customFieldOptions');
+
+    const fieldName = nameInput.value.trim();
+    const fieldType = typeSelect.value;
+    const optionsStr = optionsInput.value.trim();
+
+    if (!fieldName) {
+      alert('请输入字段名称');
+      nameInput.focus();
+      return;
+    }
+
+    const existingFields = {
+      A: [...fieldsA, ...customFields.A],
+      B: [...fieldsB, ...customFields.B],
+      C: [...fieldsC, ...customFields.C]
+    };
+    const allExisting = existingFields[currentModuleType] || [];
+    if (allExisting.some(f => f.label === fieldName)) {
+      alert('该模块已存在同名字段，请使用其他名称');
+      return;
+    }
+
+    const fieldId = 'custom_' + uid();
+    const fieldDef = {
+      id: fieldId,
+      label: fieldName,
+      type: fieldType,
+      default: ''
+    };
+
+    if (fieldType === 'select') {
+      const opts = optionsStr.split(',').map(s => s.trim()).filter(s => s);
+      if (opts.length === 0) {
+        alert('下拉字段至少需要一个选项');
+        return;
+      }
+      fieldDef.options = opts;
+    }
+
+    customFields[currentModuleType].push(fieldDef);
+
+    const stateMap = { A: stateA, B: stateB, C: stateC };
+    stateMap[currentModuleType].forEach(order => {
+      order.fields[fieldId] = '';
+    });
+
+    if (currentModuleType === 'A') renderModuleA();
+    else if (currentModuleType === 'B') renderModuleB();
+    else if (currentModuleType === 'C') renderModuleC();
+
+    closeCustomFieldModal();
+  }
+
+  document.getElementById('customFieldModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCustomFieldModal();
+  });
+
+  // ---------- 预览 ----------
+  function openPreview() {
+    const previewInner = document.getElementById('previewInner');
+    previewInner.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.className = 'preview-title';
+    title.innerHTML = '<i class="fas fa-clipboard-list"></i> 订单预览';
+    previewInner.appendChild(title);
+
+    const modules = [
+      { type: 'A', name: '客户订单', icon: 'fa-file-invoice', data: stateA, fields: [...fieldsA, ...customFields.A] },
+      { type: 'B', name: '订单跟进', icon: 'fa-chart-line', data: stateB, fields: [...fieldsB, ...customFields.B] },
+      { type: 'C', name: '订单售后跟踪', icon: 'fa-headset', data: stateC, fields: [...fieldsC, ...customFields.C] }
+    ];
+
+    modules.forEach(mod => {
+      const section = document.createElement('div');
+      section.className = 'preview-section';
+
+      const h3 = document.createElement('h3');
+      h3.innerHTML = `<i class="fas ${mod.icon}"></i> ${mod.name} (${mod.data.length} 条)`;
+      section.appendChild(h3);
+
+      if (mod.data.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'preview-empty';
+        empty.textContent = '暂无数据';
+        section.appendChild(empty);
+      } else {
+        mod.data.forEach((order, idx) => {
+          const card = document.createElement('div');
+          card.className = 'preview-card';
+
+          const idxBadge = document.createElement('div');
+          const moduleClass = mod.type === 'A' ? 'index-a' : (mod.type === 'B' ? 'index-b' : 'index-c');
+          idxBadge.className = 'preview-index ' + moduleClass;
+          idxBadge.textContent = (idx + 1);
+          card.appendChild(idxBadge);
+
+          const content = document.createElement('div');
+          content.className = 'preview-card-content';
+
+          const grid = document.createElement('div');
+          grid.className = 'preview-grid';
+
+          mod.fields.forEach(fieldDef => {
+            const fieldId = fieldDef.id;
+            const label = fieldDef.label;
+            const value = order.fields[fieldId] || '—';
+
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            item.innerHTML = `
+              <span class="preview-item-label">${label}</span>
+              <span class="preview-item-value">${value || '—'}</span>
+            `;
+            grid.appendChild(item);
+          });
+
+          content.appendChild(grid);
+          card.appendChild(content);
+          section.appendChild(card);
+        });
+      }
+
+      previewInner.appendChild(section);
+    });
+
+    document.getElementById('previewModal').classList.add('active');
+  }
+
+  function closePreview() {
+    document.getElementById('previewModal').classList.remove('active');
+  }
+
+  // ---------- 导出 PDF ----------
+  function exportPDF() {
+    const tempContainer = document.createElement('div');
+    tempContainer.style.padding = '1.5rem';
+    tempContainer.style.background = '#ffffff';
+    tempContainer.style.fontFamily = 'Inter, system-ui, sans-serif';
+    tempContainer.style.color = '#0f172a';
+    tempContainer.style.width = '100%';
+
+    const title = document.createElement('div');
+    title.style.fontSize = '1.5rem';
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '1.25rem';
+    title.style.display = 'flex';
+    title.style.alignItems = 'center';
+    title.style.gap = '0.5rem';
+    title.innerHTML = '<i class="fas fa-clipboard-list" style="color:#3b82f6;"></i> 订单预览';
+    tempContainer.appendChild(title);
+
+    const totalOrders = stateA.length + stateB.length + stateC.length;
+    let totalAmount = 0;
+    stateB.forEach(order => {
+      const amountStr = (order.fields.amount || '').replace(/[^0-9.]/g, '');
+      const amount = parseFloat(amountStr);
+      if (!isNaN(amount)) totalAmount += amount;
+    });
+
+    const summaryBox = document.createElement('div');
+    summaryBox.style.background = 'linear-gradient(135deg, #f8fafc, #ffffff)';
+    summaryBox.style.border = '1px solid #f1f5f9';
+    summaryBox.style.borderRadius = '0.75rem';
+    summaryBox.style.padding = '1rem 1.25rem';
+    summaryBox.style.marginBottom = '1.5rem';
+    summaryBox.innerHTML = `
+      <div style="font-size:0.95rem; font-weight:600; color:#1e293b; margin-bottom:0.5rem;">📊 看板摘要</div>
+      <div style="font-size:0.85rem; color:#475569; line-height:1.7;">
+        订单总数：<strong>${totalOrders}</strong> 条 · 
+        订单总金额：<strong>$${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong> · 
+        涉及客户：<strong>${new Set([...stateA.map(o => o.fields.customer_name), ...stateB.map(o => o.fields.customer_name_b)]).size}</strong> 个
+      </div>
+    `;
+    tempContainer.appendChild(summaryBox);
+
+    const modules = [
+      { type: 'A', name: '客户订单', icon: 'fa-file-invoice', data: stateA, fields: [...fieldsA, ...customFields.A] },
+      { type: 'B', name: '订单跟进', icon: 'fa-chart-line', data: stateB, fields: [...fieldsB, ...customFields.B] },
+      { type: 'C', name: '订单售后跟踪', icon: 'fa-headset', data: stateC, fields: [...fieldsC, ...customFields.C] }
+    ];
+
+    modules.forEach(mod => {
+      const section = document.createElement('div');
+      section.style.marginBottom = '1.5rem';
+
+      const h3 = document.createElement('h3');
+      h3.style.fontSize = '1rem';
+      h3.style.fontWeight = '600';
+      h3.style.color = '#1e293b';
+      h3.style.marginBottom = '0.6rem';
+      h3.style.paddingBottom = '0.3rem';
+      h3.style.borderBottom = '1.5px solid #f1f5f9';
+      h3.style.display = 'flex';
+      h3.style.alignItems = 'center';
+      h3.style.gap = '0.4rem';
+      h3.innerHTML = `<i class="fas ${mod.icon}" style="color:#3b82f6;"></i> ${mod.name} (${mod.data.length} 条)`;
+      section.appendChild(h3);
+
+      if (mod.data.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.color = '#94a3b8';
+        empty.style.fontStyle = 'italic';
+        empty.style.fontSize = '0.9rem';
+        empty.style.padding = '0.5rem 0';
+        empty.textContent = '暂无数据';
+        section.appendChild(empty);
+      } else {
+        mod.data.forEach((order, idx) => {
+          const card = document.createElement('div');
+          card.style.background = '#fafcff';
+          card.style.border = '1px solid #f1f5f9';
+          card.style.borderRadius = '0.75rem';
+          card.style.padding = '0.9rem 1.1rem 0.9rem 0.9rem';
+          card.style.marginBottom = '0.65rem';
+          card.style.display = 'flex';
+          card.style.gap = '0.9rem';
+          card.style.alignItems = 'flex-start';
+
+          const idxBadge = document.createElement('div');
+          idxBadge.style.width = '30px';
+          idxBadge.style.height = '30px';
+          idxBadge.style.borderRadius = '0.55rem';
+          idxBadge.style.display = 'flex';
+          idxBadge.style.alignItems = 'center';
+          idxBadge.style.justifyContent = 'center';
+          idxBadge.style.fontSize = '0.8rem';
+          idxBadge.style.fontWeight = '700';
+          idxBadge.style.color = '#ffffff';
+          idxBadge.style.flexShrink = '0';
+          idxBadge.style.marginTop = '2px';
+          if (mod.type === 'A') {
+            idxBadge.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+          } else if (mod.type === 'B') {
+            idxBadge.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          } else {
+            idxBadge.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+          }
+          idxBadge.textContent = (idx + 1);
+          card.appendChild(idxBadge);
+
+          const content = document.createElement('div');
+          content.style.flex = '1';
+          content.style.minWidth = '0';
+
+          const grid = document.createElement('div');
+          grid.style.display = 'grid';
+          grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(180px, 1fr))';
+          grid.style.gap = '0.6rem 1.5rem';
+
+          mod.fields.forEach(fieldDef => {
+            const fieldId = fieldDef.id;
+            const label = fieldDef.label;
+            const value = order.fields[fieldId] || '—';
+
+            const item = document.createElement('div');
+            item.style.display = 'flex';
+            item.style.flexDirection = 'column';
+            item.innerHTML = `
+              <span style="font-size:0.65rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.04em; margin-bottom:0.1rem;">${label}</span>
+              <span style="font-size:0.9rem; color:#0f172a; word-break:break-word; font-weight:500;">${value || '—'}</span>
+            `;
+            grid.appendChild(item);
+          });
+
+          content.appendChild(grid);
+          card.appendChild(content);
+          section.appendChild(card);
+        });
+      }
+
+      tempContainer.appendChild(section);
+    });
+
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '0';
+    tempContainer.style.width = '210mm';
+    document.body.appendChild(tempContainer);
+
+    const opt = {
+      margin: [0.5, 0.5, 0.5, 0.5],
+      filename: '订单管理预览.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        windowWidth: tempContainer.scrollWidth,
+        windowHeight: tempContainer.scrollHeight
+      },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(tempContainer).save().then(() => {
+      document.body.removeChild(tempContainer);
+    }).catch((err) => {
+      console.error('PDF导出失败:', err);
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
+      alert('PDF导出失败，请重试或检查控制台日志。');
+    });
+  }
+
+  // ---------- 初始化 ----------
+  function init() {
+    renderModuleA();
+    renderModuleB();
+    renderModuleC();
+    setTimeout(() => {
+      refreshDashboard();
+    }, 100);
+  }
+
+  window.onload = init;
+
+  window.toggleModule = toggleModule;
+  window.addOrderA = addOrderA;
+  window.addOrderB = addOrderB;
+  window.addOrderC = addOrderC;
+  window.openPreview = openPreview;
+  window.closePreview = closePreview;
+  window.exportPDF = exportPDF;
+  window.scrollToModule = scrollToModule;
+  window.openCustomFieldModal = openCustomFieldModal;
+  window.closeCustomFieldModal = closeCustomFieldModal;
+  window.confirmCustomField = confirmCustomField;
+  window.toggleMenu = toggleMenu;
+  window.toggleSubMenu = toggleSubMenu;
+  window.handleSubMenu = handleSubMenu;
+  window.updateBreadcrumb = updateBreadcrumb;
+  window.refreshDashboard = refreshDashboard;
+</script>
+
+</body>
+</html>
